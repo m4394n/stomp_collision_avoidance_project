@@ -162,7 +162,7 @@ if enableVideoTraining == 1
     nTraining = length(theta_animation_tmp);
 
     % === Animation loop ===
-    for k = 0:5:nTraining
+    for k = 0:3:nTraining-1
         set(htext, 'String', ['Iteration = ', num2str(k)]);
         theta_tmp = theta_animation_tmp{k+1};
 
@@ -214,7 +214,7 @@ if enableVideo == 1
         frame.cdata = imresize(frame.cdata, [526 875]);
         writeVideo(v, frame);
 
-        pause(5/20);
+        pause(1/15);
     end
 
     close(v);
@@ -228,7 +228,7 @@ if displayAnimation
     for t=1:size(theta,2)
         show(robot, theta(:,t),'PreservePlot', false, 'Frames', 'on');
         drawnow;
-        pause(5/20);
+        pause(1/15);
         %     pause;
     end
 end
