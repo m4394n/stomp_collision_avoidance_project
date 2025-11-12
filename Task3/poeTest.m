@@ -1,45 +1,71 @@
-%% Test PoE FK vs MATLAB getTransform
-
-clc; clear; close all;
-
-%% Load robot
-robot_name = 'kinovaGen3';
+% Load robot
+robot_name = 'kukaIiwa7';
 robot = loadrobot(robot_name, 'DataFormat', 'column');
-
 nJoints = numel(robot.homeConfiguration);
+N_runs = 1000; 
 
-%% Random joint configuration
-theta = rand(nJoints,1) * pi/2;  % angles in [0, pi/2]
+% Random joint configuration 
+theta = rand(nJoints,1) * pi/2;
+tolerance = 1e-6;
 
-%% --- 1. FK using your PoE implementation ---
-[X_poe, T_poe] = updateJointsWorldPosition(robot, theta);
+% Validation Check
+fprintf('--- 1. Validation Check: Comparing All Joint Transformations ---\n');
 
-%% --- 2. FK using MATLAB built-in getTransform ---
+% Run PoE implementation  
+[~, T_poe] = updateJointsWorldPosition(robot, theta);
+
+% Calculate MATLAB built-in transforms for all joints
 T_builtin = cell(1, nJoints);
 for k = 1:nJoints
+    % Use robot.BodyNames{k} to get the transformation up to the k-th body
     T_builtin{k} = getTransform(robot, theta, robot.BodyNames{k});
 end
 
-%% --- 3. Compare each joint ---
-tolerance = 1e-6;
-fprintf('Comparing PoE FK vs getTransform for each joint:\n');
+all_match = true;
 for k = 1:nJoints
     diff = T_poe{k} - T_builtin{k};
-    if max(abs(diff(:))) > tolerance
-        fprintf('Joint %d differs! Max abs difference = %.2e\n', k, max(abs(diff(:))));
-    else
-        fprintf('Joint %d matches.\n', k);
+    max_diff = max(abs(diff(:)));
+    if max_diff > tolerance
+        fprintf('Joint %d (%s) differs! Max abs difference = %.2e\n', k, robot.BodyNames{k}, max_diff);
+        all_match = false;
     end
 end
 
-%% --- 4. Compare end-effector position ---
-ee_poe = X_poe(end,1:3)';
-ee_builtin = T_builtin{end}(1:3,4);
-fprintf('\nEnd-effector position difference: [%.3e, %.3e, %.3e]\n', ee_poe - ee_builtin);
+if all_match
+    fprintf('All %d joint transformations match MATLAB built-in (Diff < %.1e).\n', nJoints, tolerance);
+else
+    fprintf('Validation failed for one or more joints.\n');
+end
 
-%% --- 5. Visualization ---
-figure;
-show(robot, theta); hold on;
-plot3(X_poe(:,1), X_poe(:,2), X_poe(:,3), 'ro-', 'LineWidth', 2, 'MarkerSize',6);
-title('PoE FK (red) vs MATLAB robot visualization (blue)');
-grid on; axis equal;
+% Performance Comparison
+
+fprintf('\n--- 2. Performance Comparison (%d runs) ---\n', N_runs);
+
+% Time PoE implementation 
+tic;
+for i = 1:N_runs
+    [~, ~] = updateJointsWorldPosition(robot, theta); 
+end
+time_poe = toc / N_runs;
+fprintf('PoE Implementation (All Joints): %.6f seconds (per run)\n', time_poe);
+
+
+% Time MATLAB built-in
+tic;
+for i = 1:N_runs
+    for k = 1:nJoints
+        getTransform(robot, theta, robot.BodyNames{k});
+    end
+end
+time_builtin = toc / N_runs;
+fprintf('MATLAB getTransform (All Joints): %.6f seconds (per run)\n', time_builtin);
+
+% Conclusion
+fprintf('\n--- Conclusion ---\n');
+if time_poe < time_builtin
+    speedup_percent = (time_builtin - time_poe) / time_builtin * 100;
+    fprintf('PoE implementation is %.2f%% faster than sequential getTransform calls.\n', speedup_percent);
+else
+    speedup_percent = (time_poe - time_builtin) / time_poe * 100;
+    fprintf('MATLAB built-in (sequential calls) is %.2f%% faster than PoE.\n', speedup_percent);
+end

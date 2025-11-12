@@ -1,4 +1,3 @@
-function [X, T] = updateJointsWorldPosition(robot_struct, theta)
 % Compute forward kinematics using the Product of Exponentials (PoE) formula
 
 % INPUT:
@@ -9,40 +8,51 @@ function [X, T] = updateJointsWorldPosition(robot_struct, theta)
 %   X : [nJoints x 4] positions of each joint (in homogeneous form)
 %   T : {1 x nJoints} cell array of homogeneous transforms of each joint
 
+function [X, T] = updateJointsWorldPosition(robot_struct, theta)
+
 nJoints = length(theta);
 T = cell(1, nJoints);
 X = zeros(nJoints, 4);
 
 % Persistent data M_all Slist so that they are only computed once
 persistent M_all Slist
+
+% Computes screw axes (S_i) and home configurations (M_i) 
 if isempty(Slist)
-    Slist = zeros(6, nJoints);
-    M_all = cell(1, nJoints);
+    Slist = zeros(6, nJoints); % Stores all 6x1 screw axes
+    M_all = cell(1, nJoints); % Stores 4x4 home configurations of joints
     T_accum = eye(4);
 
     for i = 1:nJoints
+
+        % Transformation function from Parent Body frame to Joint frame
         T_joint = robot_struct.Bodies{i}.Joint.JointToParentTransform;
+
+        % Transformation function from Joint frame to Child Body frame
         T_child = robot_struct.Bodies{i}.Joint.ChildToJointTransform;
+
+        % Transformation function from base frame to ith joint frame
         T_accum = T_accum * T_joint * T_child;
         M_all{i} = T_accum;  % home configuration of joint i
 
-        % Screw axis in space frame
+        % Screw axis in base frame
         w_local = robot_struct.Bodies{i}.Joint.JointAxis(:);
-        R = T_accum(1:3, 1:3);
-        q = T_accum(1:3, 4);
-        w = R * w_local;
-        v = -cross(w, q);
+        R = T_accum(1:3, 1:3); % Rotation matrix from base to joint i
+        q = T_accum(1:3, 4); % Position vector of joint i in base fram
+        w = R * w_local; % Angular velocity
+        v = -cross(w, q); % Linear velocity (v = -w x q)
+
+        % 6x1 screw axis
         Slist(:, i) = [w; v];
     end
 end
 
-
+% Forward Kinematics Calculation
+T_exp_accum = eye(4);
 for k = 1:nJoints
-    T_k = eye(4);
-    for j = 1:k
-        T_k = T_k * MatrixExp6(VecToSE3(Slist(:, j) * theta(j)));
-    end
-    T{k} = T_k * M_all{k};
+    T_exp_k = MatrixExp6(VecTose3(Slist(:, k) * theta(k)));
+    T_exp_accum = T_exp_accum * T_exp_k;
+    T{k} = T_exp_accum * M_all{k};
     X(k, :) = (T{k} * [0; 0; 0; 1])';
 end
 
@@ -51,8 +61,8 @@ end
 
 % --------- Helper Functions --------- 
 
-function se3mat = VecToSE3(V)
-% Takes a 6-vector (representing a spatial velocity).
+function se3mat = VecTose3(V)
+% Maps a 6-vector (representing a spatial velocity)
 % Returns the corresponding 4x4 se(3) matrix
 
 omega = V(1:3);
