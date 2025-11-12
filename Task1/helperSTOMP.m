@@ -133,57 +133,95 @@ isTrajectoryInCollision = any(inCollision)
 
 
 %% Record the whole training/learning process in video file
-enableVideoTraining = 0;
-
-
-
-v = VideoWriter('KinvaGen3_Training.avi');
-v.FrameRate = 15;
-open(v);
-
-htext = text(-0.2,0.6,0.7,'Iteration = 0','HorizontalAlignment','left','FontSize',14);
-
 if enableVideoTraining == 1
+
+    % === Check if visualizer figure exists ===
+    if evalin('base','exist(''hgif'',''var'')')
+        hgif = evalin('base','hgif');
+    else
+        hgif = [];
+    end
+
+    if isempty(hgif) || ~ishandle(hgif)
+        warning('Visualizer window is closed. Please keep it open before recording.');
+        return;
+    end
+
+    % === Initialize video writer ===
+    v = VideoWriter('KinvaGen3_Training.avi');
+    v.FrameRate = 15;
+    open(v);
+
+    % === Add iteration text overlay ===
+    ax1 = evalin('base','ax1');
+    htext = text(ax1, -0.2, 0.6, 0.7, 'Iteration = 0', ...
+        'HorizontalAlignment','left','FontSize',14);
+
+    % === Prepare animation data ===
     theta_animation_tmp = theta_animation(~cellfun('isempty',theta_animation));
     nTraining = length(theta_animation_tmp);
-    for k=0:5:nTraining
-        
-        UpdatedText = ['Iteration = ',num2str(k)];
-        set(htext,'String',UpdatedText)
+
+    % === Animation loop ===
+    for k = 0:5:nTraining
+        set(htext, 'String', ['Iteration = ', num2str(k)]);
         theta_tmp = theta_animation_tmp{k+1};
 
-        for t=1:size(theta_tmp,2)
-            show(robot, theta_tmp(:,t),'PreservePlot', false, 'Frames', 'on');
-            %             drawnow;
-            frame = getframe(gcf);
-            writeVideo(v,frame);
-%             pause(1/15);
-            %     pause;
+        for t = 1:size(theta_tmp,2)
+            show(robot, theta_tmp(:,t), ...
+                 'PreservePlot', false, 'Frames', 'on', 'Parent', ax1);
+            drawnow;
+
+            frame = getframe(hgif);
+            frame.cdata = imresize(frame.cdata, [526 875]);
+            writeVideo(v, frame);
         end
         pause(1/15);
     end
-end
-close(v);
 
+    close(v);
+end
 
 
 %% Record planned trajectory to video files
-enableVideo = 0;
 if enableVideo == 1
+
+    % === Check if visualizer figure exists ===
+    if evalin('base','exist(''hgif'',''var'')')
+        hgif = evalin('base','hgif');
+    else
+        hgif = [];
+    end
+
+    if isempty(hgif) || ~ishandle(hgif)
+        warning('Visualizer window is closed. Please keep it open before recording.');
+        return;
+    end
+
+    % === Initialize video writer ===
     v = VideoWriter('KinvaGen3_wEEConY3.avi');
-    v.FrameRate =2;
+    v.FrameRate = 2;
     open(v);
 
-    for t=1:size(theta,2)
-        show(robot, theta(:,t),'PreservePlot', false, 'Frames', 'on');
+    ax1 = evalin('base','ax1');
+
+    % === Trajectory playback & recording ===
+    for t = 1:size(theta,2)
+        show(robot, theta(:,t), ...
+             'PreservePlot', false, 'Frames', 'on', 'Parent', ax1);
         drawnow;
-        frame = getframe(gcf);
-        writeVideo(v,frame);
+
+        frame = getframe(hgif);
+        frame.cdata = imresize(frame.cdata, [526 875]);
+        writeVideo(v, frame);
+
         pause(5/20);
-        %     pause;
     end
+
     close(v);
 end
+
+
+
 %% Show the planned trajectory
 displayAnimation = 1;
 if displayAnimation

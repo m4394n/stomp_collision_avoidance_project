@@ -1,33 +1,44 @@
 % Visualize the obstacles and robot manipulator
+% ----------------------------------------------------------
 
-% Initial visualizer 
 positions = x0(1:numJoints)';
 
-% figure(): The 1st and 2nd number is the pixel position of the figure relative to
-% the monitor display. The 3rd and 4th number are the width and height of
-% the figure.
-hgif = figure('Position', [375 446 641 480]);
-% 'PreservePlot'= True: The function does not overwrite previous plots displayed by calling show. 
-% This setting functions similarly to hold on for a standard MATLAB® figure, 
-% but is limited to robot body frames. When you specify this argument as 
-% false, the function overwrites previous plots of the robot.
-% 'Frames': Display body frames
-ax1 = show(robot, positions(:,1),'PreservePlot', false, 'Frames', 'off');
-% view(az,el) sets the azimuth and elevation angles of the camera's line of
-% sight for the current axes
-view(150,29)
-hold on
-% set the x,y,z, data limits of the figure
-axis([-0.8 0.8 -0.6 0.7 -0.2 0.7]);
-% plot the final position
-plot3(poseFinal(1), poseFinal(2), poseFinal(3),'r.','MarkerSize',20)
+% === Create a visible, movable figure ===
+CAPTURE_WIDTH  = 875;
+CAPTURE_HEIGHT = 526;
+screenSize = get(0, 'ScreenSize');  % [left bottom width height] of display
+leftPos   = (screenSize(3) - CAPTURE_WIDTH) / 2;  % center horizontally
+bottomPos = max(100, screenSize(4) - CAPTURE_HEIGHT - 200); % not off-screen
+
+hgif = figure('Units', 'pixels', ...
+              'Position', [leftPos bottomPos CAPTURE_WIDTH CAPTURE_HEIGHT], ...
+              'Resize', 'on', ...      
+              'Visible', 'on', ...
+              'Name', 'Kinova Capture', ...
+              'NumberTitle', 'off');
+ax1 = axes('Parent', hgif);
+
+% === Plot robot and environment ===
+show(robot, positions(:,1), 'PreservePlot', false, 'Frames', 'off', 'Parent', ax1);
+view(ax1, 150, 29);
+hold(ax1, 'on');
+
+% Lock axis limits and aspect ratio (for stable camera view)
+axis(ax1, [-0.8 0.8 -0.6 0.7 -0.2 0.7]);
+axis(ax1, 'vis3d');
+daspect(ax1, [1 1 1]);
+
+% Plot the final position
+plot3(ax1, poseFinal(1), poseFinal(2), poseFinal(3), 'r.', 'MarkerSize', 20);
 
 % Visualize collision world specified in helperCreateObstaclesKINOVA.m
-for i=1:numel(world)
-    [~,pObj] = show(world{i});
+for i = 1:numel(world)
+    [~, pObj] = show(world{i}, 'Parent', ax1);
     pObj.LineStyle = 'none';
 end
 
-
-
-
+% ----------------------------------------------------------
+% Keep the handle for video capture use
+assignin('base', 'hgif', hgif);
+assignin('base', 'ax1', ax1);
+% ----------------------------------------------------------
